@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/auth")
@@ -40,12 +41,17 @@ public class AuthController {
         MultiValueMap<String, String> headers = new LinkedMultiValueMap<>();
         headers.add(HttpHeaders.SET_COOKIE, token);
         return new ResponseEntity<>(user, headers, HttpStatus.OK);
+        //return ResponseEntity.status(HttpStatus.OK).headers(headers).body(user);
     }
 
     //post because we will create object of JWT Parser
     @PostMapping("/validateToken")
     public Boolean validateToken(@RequestBody ValidateTokenRequest validateTokenRequest){
-        return false;
+         Boolean isValid = authService.validateToken(validateTokenRequest.getToken(), validateTokenRequest.getUserId());
+         if(!isValid){
+             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid token");
+         }
+        return true;
     }
 
     @PostMapping("/logout")

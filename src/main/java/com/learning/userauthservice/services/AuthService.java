@@ -1,8 +1,13 @@
 package com.learning.userauthservice.services;
 
 import com.learning.userauthservice.exceptions.AuthServiceException;
+import com.learning.userauthservice.models.Status;
 import com.learning.userauthservice.models.User;
+import com.learning.userauthservice.models.UserSession;
 import com.learning.userauthservice.repo.UserRepo;
+import com.learning.userauthservice.repo.UserSessionRepo;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtParser;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.MacAlgorithm;
 import org.antlr.v4.runtime.misc.Pair;
@@ -24,6 +29,12 @@ public class AuthService implements IAuthService{
 
     @Autowired
     private BCryptPasswordEncoder passwordEncoder;
+
+    @Autowired
+    private UserSessionRepo userSessionRepo;
+
+    @Autowired
+    private SecretKey secretKey;
 
     @Override
     public User signUp(String name, String email, String password, String phoneNumber) {
@@ -58,6 +69,12 @@ public class AuthService implements IAuthService{
 
         //Jwt Token Generation
         String jwtToken = getJwtToken(user);
+        //Persist token in DB
+        UserSession session = new UserSession();
+        session.setUser(user);
+        session.setToken(jwtToken);
+        session.setStatus(Status.ACTIVE);
+        userSessionRepo.save(session);
         return new Pair<User,String>(user,jwtToken);
     }
 
@@ -78,11 +95,12 @@ public class AuthService implements IAuthService{
         claims.put("userId",user.getId());
         long currentTimeStamp = System.currentTimeMillis();
         claims.put("gen",currentTimeStamp);
-        claims.put("exp",currentTimeStamp+10000);
+        claims.put("exp",currentTimeStamp+30000);
         claims.put("roles",user.getRoles());
 
-        MacAlgorithm algorithm = Jwts.SIG.HS256;
-        SecretKey secretKey = algorithm.key().build();
+        //will create a bean of SecretKey so that we can use it to validate token
+        //MacAlgorithm algorithm = Jwts.SIG.HS256;
+        //SecretKey secretKey = algorithm.key().build();
         //return Jwts.builder().content(content).compact();
         //return Jwts.builder().content(content).signWith(secretKey).compact(); //Adding secret key in jwt payload
         return Jwts.builder().claims(claims).signWith(secretKey).compact();
@@ -90,7 +108,29 @@ public class AuthService implements IAuthService{
 
     @Override
     public Boolean validateToken(String token, Long userId) {
-        return null;
+        //check given token exists in DB
+        Optional<UserSession> userSessionOptional = userSessionRepo.findByTokenAndUserId(token,userId);
+        if(userSessionOptional.isEmpty()){
+            return false;
+        }
+
+        UserSession session = userSessionOptional.get();
+        if(session.getStatus().equals(Status.INACTIVE)){
+            return false;
+        }
+        //parse token
+        JwtParser parser = Jwts.parser().verifyWith(secretKey).build();
+        Claims claims = parser.parseSignedClaims(token).getPayload();
+        Long expiry = (Long)claims.get("exp");
+        long currentTimeStamp = System.currentTimeMillis();
+        if(currentTimeStamp>expiry){
+            System.out.println("Token expired");
+            //marking session as inactive in DB
+            session.setStatus(Status.INACTIVE);
+            userSessionRepo.save(session);
+            return false;
+        }
+        return true;
     }
 
     @Override
