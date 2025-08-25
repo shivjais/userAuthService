@@ -85,10 +85,16 @@
             <scope>Runtime</scope>
         </dependency>
         <!-- To register this service as eureka client -->
-        <dependency>
+        <!--<dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
             <version>4.3.0</version>
+        </dependency>-->
+        <!-- spring-kafka -->
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+            <version>3.3.9</version>
         </dependency>
     </dependencies>
 

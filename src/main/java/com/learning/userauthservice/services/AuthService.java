@@ -1,5 +1,9 @@
 package com.learning.userauthservice.services;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.learning.userauthservice.clients.KafkaClient;
+import com.learning.userauthservice.dtos.EmailDto;
 import com.learning.userauthservice.exceptions.AuthServiceException;
 import com.learning.userauthservice.models.Status;
 import com.learning.userauthservice.models.User;
@@ -36,6 +40,12 @@ public class AuthService implements IAuthService{
     @Autowired
     private SecretKey secretKey;
 
+    @Autowired
+    private KafkaClient kafkaClient;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
     @Override
     public User signUp(String name, String email, String password, String phoneNumber) {
         Optional<User> userOptional = userRepo.findByEmail(email);
@@ -51,6 +61,18 @@ public class AuthService implements IAuthService{
         user.setEmail(email);
         user.setPassword(password);
         user.setPhoneNumber(phoneNumber);
+
+        //send email via kafka
+        try {
+            EmailDto emailDto = new EmailDto();
+            emailDto.setTo(email);
+            emailDto.setFrom("shivamj1008@gmail.com");
+            emailDto.setSubject("Welcome to Scaler");
+            emailDto.setBody("Having good learning experience");
+            kafkaClient.sendMessage("signup",objectMapper.writeValueAsString(emailDto));
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
         return userRepo.save(user);
     }
 
